@@ -23,6 +23,7 @@ dataset_root
 ├── pop (100 files)
 ├── reggae (100 files)
 └── rock (100 files)
+</pre>
 
 **1. Requirements** 
 
