@@ -91,7 +91,7 @@ class StatisticsContainer(object):
             os.path.splitext(self.statistics_path)[0], 
             datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 
-        self.statistics_dict = {'bal': [], 'test': []}
+        self.statistics_dict = {'validate': []}
 
     def append(self, iteration, statistics, data_type):
         statistics['iteration'] = iteration
@@ -106,7 +106,7 @@ class StatisticsContainer(object):
     def load_state_dict(self, resume_iteration):
         self.statistics_dict = pickle.load(open(self.statistics_path, 'rb'))
 
-        resume_statistics_dict = {'bal': [], 'test': []}
+        resume_statistics_dict = {'validate': []}
         
         for key in self.statistics_dict.keys():
             for statistics in self.statistics_dict[key]:

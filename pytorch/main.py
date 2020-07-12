@@ -12,14 +12,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
  
-# from evaluate import Evaluator
 from config import (sample_rate, classes_num, mel_bins, fmin, fmax, window_size, 
     hop_size, window, pad_mode, center, ref, amin, top_db)
 from losses import get_loss_func
 from pytorch_utils import move_data_to_device, do_mixup
 from utilities import (create_folder, get_filename, create_logging, StatisticsContainer, Mixup)
-from data_generator import GtzanDataset, TrainSampler, collate_fn
+from data_generator import GtzanDataset, TrainSampler, EvaluateSampler, collate_fn
 from models import Transfer_Cnn14
+from evaluate import Evaluator
 
 
 def train(args):
@@ -105,9 +105,18 @@ def train(args):
         holdout_fold=holdout_fold, 
         batch_size=batch_size * 2 if 'mixup' in augmentation else batch_size)
 
+    validate_sampler = EvaluateSampler(
+        hdf5_path=hdf5_path, 
+        holdout_fold=holdout_fold, 
+        batch_size=batch_size)
+
     # Data loader
     train_loader = torch.utils.data.DataLoader(dataset=dataset, 
         batch_sampler=train_sampler, collate_fn=collate_fn, 
+        num_workers=num_workers, pin_memory=True)
+
+    validate_loader = torch.utils.data.DataLoader(dataset=dataset, 
+        batch_sampler=validate_sampler, collate_fn=collate_fn, 
         num_workers=num_workers, pin_memory=True)
 
     if 'cuda' in device:
@@ -120,12 +129,10 @@ def train(args):
     
     if 'mixup' in augmentation:
         mixup_augmenter = Mixup(mixup_alpha=1.)
-    '''    
+     
     # Evaluator
-    evaluator = Evaluator(
-        model=model, 
-        data_generator=data_generator)
-    '''
+    evaluator = Evaluator(model=model)
+    
     train_bgn_time = time.time()
     
     # Train on mini batches
@@ -133,9 +140,9 @@ def train(args):
 
         # import crash
         # asdf
-        '''
+        
         # Evaluate
-        if iteration % 200 == 0:
+        if iteration % 200 == 0 and iteration > 0:
             if resume_iteration > 0 and iteration == resume_iteration:
                 pass
             else:
@@ -144,15 +151,10 @@ def train(args):
 
                 train_fin_time = time.time()
 
-                data_type = 'validate'
-                statistics = evaluator.evaluate(
-                    data_type=data_type, max_iteration=None)
+                statistics = evaluator.evaluate(validate_loader)
+                logging.info('Validate accuracy: {:.3f}'.format(statistics['accuracy']))
 
-                logging.info('{} accuracy: {:.3f}'.format(data_type, statistics['accuracy']))
-
-                statistics_container.append(
-                    iteration, statistics, data_type)
-
+                statistics_container.append(iteration, statistics, 'validate')
                 statistics_container.dump()
 
                 train_time = train_fin_time - train_bgn_time
@@ -165,7 +167,7 @@ def train(args):
                 train_bgn_time = time.time()
 
         # Save model 
-        if iteration % 4000 == 0 and iteration > 0:
+        if iteration % 2000 == 0 and iteration > 0:
             checkpoint = {
                 'iteration': iteration, 
                 'model': model.module.state_dict()}
@@ -175,7 +177,7 @@ def train(args):
                 
             torch.save(checkpoint, checkpoint_path)
             logging.info('Model saved to {}'.format(checkpoint_path))
-        '''
+        
         if 'mixup' in augmentation:
             batch_data_dict['mixup_lambda'] = mixup_augmenter.get_lambda(len(batch_data_dict['waveform']))
         

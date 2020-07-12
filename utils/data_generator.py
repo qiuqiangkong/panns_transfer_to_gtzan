@@ -152,6 +152,57 @@ class TrainSampler(object):
         self.pointer = state['pointer']
 
 
+class EvaluateSampler(object):
+    def __init__(self, hdf5_path, holdout_fold, batch_size, random_seed=1234):
+        """Balanced sampler. Generate batch meta for training.
+        
+        Args:
+          indexes_hdf5_path: string
+          batch_size: int
+          black_list_csv: string
+          random_seed: int
+        """
+        # super(TrainSampler, self).__init__(indexes_hdf5_path, batch_size, 
+            # random_seed)
+
+        self.hdf5_path = hdf5_path
+        self.batch_size = batch_size
+
+        with h5py.File(hdf5_path, 'r') as hf:
+            self.folds = hf['fold'][:].astype(np.float32)
+
+        self.indexes = np.where(self.folds == int(holdout_fold))[0]
+        self.audios_num = len(self.indexes)
+        
+    def __iter__(self):
+        """Generate batch meta for training. 
+        
+        Returns:
+          batch_meta: e.g.: [
+            {'audio_name': 'YfWBzCRl6LUs.wav', 
+             'hdf5_path': 'xx/balanced_train.h5', 
+             'index_in_hdf5': 15734, 
+             'target': [0, 1, 0, 0, ...]}, 
+            ...]
+        """
+        batch_size = self.batch_size
+        pointer = 0
+
+        while pointer < self.audios_num:
+            batch_indexes = np.arange(pointer, 
+                min(pointer + batch_size, self.audios_num))
+
+            batch_meta = []
+
+            for i in batch_indexes:
+                batch_meta.append({
+                    'hdf5_path': self.hdf5_path, 
+                    'index_in_hdf5': self.indexes[i]})
+
+            pointer += batch_size
+            yield batch_meta
+
+
 def collate_fn(list_data_dict):
     """Collate data.
     Args:
